@@ -243,7 +243,8 @@ installing() {
 	# sorting pacman mirrors
 	echo "# Sorting fastest pacman mirrors..."
 	rank=$(curl -s "https://archlinux.org/mirrorlist/?country="$country"&protocol=https&use_mirror_status=on" | sed -e 's/^#Server/Server/' -e '/^#/d')
-	/usr/share/nif/rankmirrors -n 10 ./currentmirror.txt > mirrors.txt
+	echo -e "$rank" > currentmirrors.txt
+	/usr/share/nif/rankmirrors -n 10 ./currentmirrors.txt > mirrors.txt
 	cp ./mirrors.txt /etc/pacman.d/mirrorlist
 	# updating pacman cache
 	echo "# Updating Pacman Cache..."
