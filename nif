@@ -242,7 +242,7 @@ installing() {
 	else (
 	# sorting pacman mirrors
 	echo "# Sorting fastest pacman mirrors..."
-	rank=$(curl -s "https://www.archlinux.org/mirrorlist/?country="$country"&protocol=https&use_mirror_status=on" | sed -e 's/^#Server/Server/' -e '/^#/d' | rankmirrors -n 10 -)
+	rank=$(curl -s "https://archlinux.org/mirrorlist/?country="$country"&protocol=https&use_mirror_status=on" | sed -e 's/^#Server/Server/' -e '/^#/d')
 	echo -e "$rank" > /etc/pacman.d/mirrorlist
 	echo -e "$rank" > mirrors.txt
 	# updating pacman cache
@@ -252,7 +252,6 @@ installing() {
 
 	#installing base
 	echo "# Installing Base..."
-	#pacstrap /mnt base bash nano vim-minimal vi linux-firmware cryptsetup e2fsprogs findutils gawk inetutils iproute2 jfsutils licenses linux-firmware logrotate lvm2 man-db man-pages mdadm pciutils procps-ng reiserfsprogs sysfsutils xfsprogs usbutils dosfstools mtools
 	pacstrap /mnt ${arch_packages}
 
 	#generating fstab
@@ -329,7 +328,7 @@ installing() {
 	echo "# Making new user..."
 	arch_chroot "useradd -m -g users -G adm,lp,wheel,power,audio,video -s /bin/bash $usrname"
 	touch .passwd
-	echo -e "$usrpasswd1\n$userpasswd2" > .passwd
+	echo -e "$usrpasswd1\n$usrpasswd2" > .passwd
 	arch_chroot "passwd $usrname" < .passwd >/dev/null
 	rm .passwd
 
