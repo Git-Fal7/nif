@@ -1,9 +1,8 @@
 base
+base-devel
 linux
 bash
 nano
-vim-minimal
-vi
 linux-firmware
 cryptsetup
 e2fsprogs
