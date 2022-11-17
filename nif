@@ -1,5 +1,12 @@
 #!/bin/sh
 
+# System Detection
+if [[ -d "/sys/firmware/efi/" ]]; then
+	SYSTEM="UEFI"
+else
+	SYSTEM="BIOS"
+fi
+
 # Kernel to install
 KERNEL="linux"
 # Current archtetiture
@@ -9,8 +16,15 @@ title="New Installer Framework 3 $SYSTEM"
 height=600
 width=450
 
+# Enable AUR?
+enableAUR=true
+
+# Put your AUR helper package in /usr/share/nif/
+# Enter AUR helper package name
+helperAUR=yay-11.3.1-1-x86_64.pkg.tar.zst
+
 sudo pacman -Syy
-sudo pacman -S --noconfirm arch-install-scripts pacman-contrib gparted git
+sudo pacman -S --noconfirm arch-install-scripts gparted
 
 # Selecting the Drive
 man_partition() {
@@ -121,41 +135,40 @@ auto_partition() {
 	        Parted "set 1 boot on"
 	        mkfs.ext4 -F ${dev}1
 	        mount ${dev}1 /mnt
-		touch /mnt/swapfile
-		dd if=/dev/zero of=/mnt/swapfile bs=1M count=${swap_space}
-		chmod 600 /mnt/swapfile
-		mkswap /mnt/swapfile
-		swapon /mnt/swapfile
-		swapfile="yes") | zenity --progress --title="$title" --width=450 --pulsate --auto-close --no-cancel
+			touch /mnt/swapfile
+			dd if=/dev/zero of=/mnt/swapfile bs=1M count=${swap_space}
+			chmod 600 /mnt/swapfile
+			mkswap /mnt/swapfile
+			swapon /mnt/swapfile
+			swapfile="yes") | zenity --progress --title="$title" --width=450 --pulsate --auto-close --no-cancel
 	    else
-            	(echo "# Creating Partitions for UEFI..."
-            	dd if=/dev/zero of=$dev bs=512 count=1
-            	Parted "mklabel gpt"
-            	Parted "mkpart primary fat32 1MiB 513MiB"
-		Parted "mkpart primary ext4 513MiB 100%"
-		Parted "set 1 boot on"
-		mkfs.fat -F32 ${dev}1
-		mkfs.ext4 -F ${dev}2
-		mount ${dev}2 /mnt
-		mkdir -p /mnt/boot
-		mount ${dev}1 /mnt/boot
-		touch /mnt/swapfile
-		dd if=/dev/zero of=/mnt/swapfile bs=1M count=${swap_space}
-		chmod 600 /mnt/swapfile
-		mkswap /mnt/swapfile
-		swapon /mnt/swapfile
-		swapfile="yes") | zenity --progress --title="$title" --width=450 --pulsate --auto-close --no-cancel
-	fi
-			
+            (echo "# Creating Partitions for UEFI..."
+            dd if=/dev/zero of=$dev bs=512 count=1
+            Parted "mklabel gpt"
+			Parted "mkpart primary fat32 1MiB 513MiB"
+			Parted "mkpart primary ext4 513MiB 100%"
+			Parted "set 1 boot on"
+			mkfs.fat -F32 ${dev}1
+			mkfs.ext4 -F ${dev}2
+			mount ${dev}2 /mnt
+			mkdir -p /mnt/boot
+			mount ${dev}1 /mnt/boot
+			touch /mnt/swapfile
+			dd if=/dev/zero of=/mnt/swapfile bs=1M count=${swap_space}
+			chmod 600 /mnt/swapfile
+			mkswap /mnt/swapfile
+			swapon /mnt/swapfile
+			swapfile="yes") | zenity --progress --title="$title" --width=450 --pulsate --auto-close --no-cancel
+	fi			
 }
 
 partition() {
 	ans=$(zenity --list --radiolist --height=${height} --width=${width} --title="$title" --text "Would you like to use automatic partitioning or would you like to partition the disk for installation yourself?\nAutomatic Partitioning will completely erase the disk that you select and install Arch." --column Select --column Choice FALSE "Automatic Partitioning" FALSE "Manual Partitioning")
 
 	if [ "$ans" = "Automatic Partitioning" ]
-	then auto_partition
+		then auto_partition
 	else
-	man_partition
+		man_partition
 	fi
 
 }
@@ -228,8 +241,8 @@ bootloader() {
 	grb="$?"
 	if [ "$grb" = "0" ]
 		then grub_device=$(zenity --list --radiolist --height=${height} --width=${width} --title="$title" --text "Where do you want to install the bootloader?" --column Select --column Device $devices)
-	zenity --question --text="Do you have other operating systems on your device that you'd like grub to detect?"
-	probe="$?"
+		zenity --question --text="Do you have other operating systems on your device that you'd like grub to detect?"
+		probe="$?"
 	fi
 }
 
@@ -242,8 +255,8 @@ installing() {
 	else (
 	# sorting pacman mirrors
 	echo "# Sorting fastest pacman mirrors..."
-	rank=$(curl -s "https://archlinux.org/mirrorlist/?country="$country"&protocol=https&use_mirror_status=on" | sed -e 's/^#Server/Server/' -e '/^#/d')
-	echo -e "$rank" > currentmirrors.txt
+	mirrors=$(curl -s "https://archlinux.org/mirrorlist/?country="$country"&protocol=https&use_mirror_status=on" | sed -e 's/^#Server/Server/' -e '/^#/d')
+	echo -e "$mirrors" > currentmirrors.txt
 	/usr/share/nif/rankmirrors -n 10 ./currentmirrors.txt > mirrors.txt
 	cp ./mirrors.txt /etc/pacman.d/mirrorlist
 	# updating pacman cache
@@ -263,10 +276,17 @@ installing() {
 		echo "/swapfile		none	swap	defaults	0	0" >> /mnt/etc/fstab
 	fi
 	echo "10"
-
+	if [ ${enableAUR} = true && -f ${helperAUR}]; then
+		echo "# Installing AUR helper"
+		install_aur
+		
+	fi
 	echo "20"
-
+	
+	
 	echo "30"
+	echo "# Running Scripts..."
+	run_chroot_commands
 
 	echo "40"
 
@@ -373,15 +393,6 @@ installing() {
 	fi
 }
 
-# execution
-# System Detection
-if [[ -d "/sys/firmware/efi/" ]]; then
-      SYSTEM="UEFI"
-      else
-      SYSTEM="BIOS"
-fi
-
-
 # Adapted from AIS. An excellent bit of code!
 arch_chroot() {
     arch-chroot /mnt /bin/bash -c "${1}"
@@ -417,6 +428,12 @@ user_form() {
 
 }
 
+run_chroot_commands(){
+	while read -r l; do
+		arch_chroot "${l}"
+	done < "/usr/share/nif/${arch}/Chroot"
+}
+
 get_arch_packages(){
 	arch_packages=""
 	while read -r l; do
@@ -429,6 +446,12 @@ get_aur_packages(){
 	while read -r l; do
 		aur_packages="${arch_packages} ${l}"
 	done < "/usr/share/nif/${arch}/AUR"
+}
+
+install_aur(){
+	cp "/usr/share/nif/${helperAUR}" /mnt/
+	arch_chroot "pacman -U --noconfirm /${helperAUR}"
+	rm -rf "/mnt/${helperAUR}"
 }
 
 # Greeting the user
@@ -445,7 +468,10 @@ user_form
 
 update
 get_arch_packages
-get_aur_packages
+
+if [ ${enableAUR} = true ]; then
+	get_aur_packages
+fi
 
 bootloader
 installing
